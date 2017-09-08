@@ -10,7 +10,8 @@ import (
 )
 
 func printUsage() {
-
+  fmt.Println("Usage:");
+  fmt.Println("  go run main.go input_file.mp4");
 }
 
 func main() {
