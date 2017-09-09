@@ -1,8 +1,10 @@
 package mp4
 
 import (
-  //"fmt"
-  "bufio"
+  "os"
+  "fmt"
+  "math"
+  "errors"
   "encoding/binary"
 )
 
@@ -12,6 +14,7 @@ const BOX_HDR_SZ_EXT = 16;
 type Box struct {
   Size uint64
   Type string
+  headerSize uint64
 }
 
 type FullBox struct {
@@ -29,106 +32,229 @@ type FileTypeBox struct {
 
 type FreeSpaceBox struct {
   box Box
-  data []uint8
+  data []byte
+}
+
+type MediaDataBox struct {
+  box Box
+  data []byte
+}
+
+type MovieHeaderBox struct {
+  box FullBox
+  creation_time uint64
+  modification_time uint64
+  timescale uint32
+  duration uint64
+  rate float32
+  volume float32
+  matrix [3][3]float32
+  pre_defined [6][4]byte
+  next_track_id uint32
+}
+
+type MovieBox struct {
+  box Box
+  mvhd MovieHeaderBox
 }
 
 type MP4 struct {
   Boxes []interface{}
 }
 
-func parseBox(r *bufio.Reader) (*Box, error) {
+func parseBox(data []byte) (*Box, error) {
   var b Box;
 
-  data,err := r.Peek(BOX_HDR_SZ);
+  hdr := data[0:BOX_HDR_SZ];
 
-  if (err != nil) {
-    return nil,err;
-  }
+  b.headerSize = BOX_HDR_SZ;
 
-  b.Size = uint64(binary.BigEndian.Uint32(data[0:4]));
-
-  data = data[4:8];
-
-  b.Type = string(data);
-
-  r.Discard(BOX_HDR_SZ);
+  b.Size = uint64(binary.BigEndian.Uint32(hdr[0:4]));
+  b.Type = string(hdr[4:8]);
 
   if (b.Size == 1) {
-    data,err = r.Peek(BOX_HDR_SZ_EXT - BOX_HDR_SZ);
-    if (err != nil) {
-      return nil,err;
-    }
-    b.Size = binary.BigEndian.Uint64(data);
-    r.Discard(BOX_HDR_SZ_EXT - BOX_HDR_SZ);
+    b.headerSize = BOX_HDR_SZ_EXT;
+    hdr = data[BOX_HDR_SZ:BOX_HDR_SZ_EXT]
+    b.Size = binary.BigEndian.Uint64(hdr);
   }
 
   return &b,nil;
 }
 
-func parseFileTypeBox(r *bufio.Reader, b *Box) (*FileTypeBox, error) {
+func parseFullBox(data []byte, b *Box) (*FullBox, error) {
+  fb := FullBox{box: *b};
+  // b,_ := parseBox(data);
+  // fb.box = *b;
+  fb.version = data[0];
+  copy(fb.flags[:], data[1:]);
+  return &fb, nil;
+}
+
+func parseFileTypeBox(data []byte, b *Box) (*FileTypeBox, error) {
   ftb := FileTypeBox{box: *b};
-
-  data,err := r.Peek(8);
-
-  if (err != nil) {
-    return nil, err;
-  }
 
   ftb.major_brand = string(data[0:4]);
   ftb.minor_version = binary.BigEndian.Uint32(data[4:8]);
 
-  r.Discard(8);
+  data = data[8:];
 
-  n := int((ftb.box.Size - 16) / 4);
+  n := int((ftb.box.Size - ftb.box.headerSize - 8) / 4);
 
   ftb.compatible_brands = make([]string, n);
 
   for i := 0; i < n; i++ {
-
-    data,err = r.Peek(4);
-
-    if (err != nil) {
-      return nil, err;
-    }
-
-    ftb.compatible_brands[i] = string(data);
-
-    r.Discard(4);
+    ftb.compatible_brands[i] = string(data[i * 4: (i + 1) * 4]);
   }
 
   return &ftb, nil;
 }
 
-func parseFreeSpaceBox(r *bufio.Reader, b *Box) (*FreeSpaceBox, error) {
+func parseFreeSpaceBox(data []byte, b *Box) (*FreeSpaceBox, error) {
   fsb := FreeSpaceBox{box: *b};
+  fsb.data = data;
   return &fsb, nil;
 }
 
-func Parse(r *bufio.Reader) (*MP4, error) {
+func parseMediaDataBox(data []byte, b *Box) (*MediaDataBox, error) {
+  mdb := MediaDataBox{box: *b};
+  mdb.data = data;
+  return &mdb, nil;
+}
 
-  res := MP4{make([]interface{}, 0)};
+func parseMovieHeaderBox(data []byte, b *Box) (*MovieHeaderBox, error) {
+  fb,_ := parseFullBox(data, b);
+  mhb := MovieHeaderBox{box: *fb};
 
-  for i := 0; i < 3; i++ {
+  data = data[4:];
 
-    b,err := parseBox(r);
+  if (fb.version == 1) {
+    mhb.creation_time = binary.BigEndian.Uint64(data[0:8]);
+    mhb.modification_time = binary.BigEndian.Uint64(data[8:16]);
+    mhb.timescale = binary.BigEndian.Uint32(data[16:20]);
+    mhb.duration = binary.BigEndian.Uint64(data[20:28]);
+    data = data[28:];
+  } else {
+    mhb.creation_time = uint64(binary.BigEndian.Uint32(data[0:4]));
+    mhb.modification_time = uint64(binary.BigEndian.Uint32(data[4:8]));
+    mhb.timescale = binary.BigEndian.Uint32(data[8:12]);
+    mhb.duration = uint64(binary.BigEndian.Uint32(data[12:16]));
+    data = data[16:];
+  }
+
+  fixed := binary.BigEndian.Uint32(data[0:4]);
+  mhb.rate = float32(fixed) / float32(math.Pow(2, 16));
+
+  fixed2 := binary.BigEndian.Uint16(data[4:6]);
+  mhb.volume = float32(fixed2) / float32(math.Pow(2, 8));
+
+  data = data[16:];
+
+  for i:=0; i < 3; i++ {
+    mhb.matrix[i][0] = float32(binary.BigEndian.Uint32(data[0:4])) / float32(math.Pow(2, 16));
+    mhb.matrix[i][1] = float32(binary.BigEndian.Uint32(data[4:8])) / float32(math.Pow(2, 16));
+    mhb.matrix[i][2] = float32(binary.BigEndian.Uint32(data[8:12])) / float32(math.Pow(2, 30));
+    data = data[12:];
+  }
+
+  data = data[9 * 4 + 6 * 4:];
+
+  mhb.next_track_id = binary.BigEndian.Uint32(data[0:4]);
+
+  return &mhb, nil;
+}
+
+func parseMovieBox(data []byte, b *Box) (*MovieBox, error) {
+  mb := MovieBox{box: *b};
+
+  for {
+    b,err := parseBox(data);
 
     if (err != nil) {
       return nil, err;
     }
 
+    fmt.Println(" -", b.Type);
+
+    if (int(b.Size) == len(data)) {
+      break;
+    }
+
+    switch b.Type {
+    case "mvhd":
+      mhb,_ := parseMovieHeaderBox(data[b.headerSize:], b);
+      mb.mvhd = *mhb;
+    }
+
+    data = data[b.Size:];
+  }
+
+  return &mb, nil;
+}
+
+func Parse(f *os.File) (*MP4, error) {
+
+  res := MP4{make([]interface{}, 0)};
+
+  hdr := make([]byte, BOX_HDR_SZ_EXT);
+
+  for {
+
+    n,err := f.Read(hdr);
+
+    if (err != nil) {
+      if (err.Error() == "EOF") {
+        break;
+      }
+      return nil, err;
+    }
+
+    if (n != BOX_HDR_SZ_EXT) {
+      return nil, errors.New("not enough data");
+    }
+
+    b,_ := parseBox(hdr);
+
+    f.Seek(int64(b.headerSize - BOX_HDR_SZ_EXT), 1);
+
+    fmt.Println("-", b.Type);
+
+    var data []byte;
+
+    if (b.Type != "mdat") {
+      data = make([]byte, b.Size - b.headerSize);
+      n,err := f.Read(data);
+
+      if (err != nil) {
+        return nil, err;
+      }
+
+      if (n != int(b.Size - b.headerSize)) {
+        return nil, errors.New("not enough data");
+      }
+
+    } else {
+      f.Seek(int64(b.Size - b.headerSize), 1);
+    }
+
     switch b.Type {
     case "ftyp":
-      ftb,_ := parseFileTypeBox(r, b);
+      ftb,_ := parseFileTypeBox(data, b);
       res.Boxes = append(res.Boxes, *ftb);
     case "free":
-      fsb,_ := parseFreeSpaceBox(r, b);
+      fallthrough
+    case "skip":
+      fsb,_ := parseFreeSpaceBox(data, b);
       res.Boxes = append(res.Boxes, *fsb);
+    case "mdat":
+      mdb,_ := parseMediaDataBox(data, b);
+      res.Boxes = append(res.Boxes, *mdb);
+    case "moov":
+      mb,_ := parseMovieBox(data, b);
+      res.Boxes = append(res.Boxes, *mb);
     }
   }
 
-  // if (err != nil) {
-  //   return nil, err;
-  // }
+  fmt.Println("");
 
   return &res, nil;
 }
