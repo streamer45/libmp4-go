@@ -24,8 +24,8 @@ func main() {
   f,err := os.OpenFile(fname, os.O_RDONLY, 0600);
 
   if (err != nil) {
-		log.Fatal(err)
-	}
+    log.Fatal(err)
+  }
 
   res,err := mp4.Parse(f);
 
@@ -46,9 +46,9 @@ func main() {
     }
   }
 
-	err = f.Close();
+  err = f.Close();
 
   if (err != nil) {
-		log.Fatal(err)
-	}
+    log.Fatal(err)
+  }
 }
