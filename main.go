@@ -4,7 +4,6 @@ import (
   "fmt"
   "os"
   "log"
-  "bufio"
 
   mp4 "github.com/streamer45/mp4/lib"
 )
@@ -28,9 +27,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-  r := bufio.NewReader(f);
-
-  res,err := mp4.Parse(r);
+  res,err := mp4.Parse(f);
 
   if (err != nil) {
     log.Fatal(err);
@@ -39,9 +36,13 @@ func main() {
   for _, x := range res.Boxes {
     switch x.(type) {
     case mp4.FileTypeBox:
-      fmt.Println(x.(mp4.FileTypeBox));
+      fmt.Printf("%+v\n", x.(mp4.FileTypeBox));
     case mp4.FreeSpaceBox:
-      fmt.Println(x.(mp4.FreeSpaceBox));
+      fmt.Printf("%+v\n", x.(mp4.FreeSpaceBox));
+    case mp4.MediaDataBox:
+      fmt.Printf("%+v\n", x.(mp4.MediaDataBox));
+    case mp4.MovieBox:
+      fmt.Printf("%+v\n", x.(mp4.MovieBox));
     }
   }
 
@@ -50,6 +51,4 @@ func main() {
   if (err != nil) {
 		log.Fatal(err)
 	}
-
-  fmt.Println("done");
 }
