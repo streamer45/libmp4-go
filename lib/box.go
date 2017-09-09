@@ -51,9 +51,30 @@ type MovieHeaderBox struct {
   next_track_id uint32
 }
 
+type TrackHeaderBox struct {
+  box FullBox
+  creation_time uint64
+  modification_time uint64
+  track_id uint32
+  duration uint64
+  width float32
+  height float32
+}
+
+type MediaBox struct {
+  box Box
+}
+
+type TrackBox struct {
+  box Box
+  tkhd TrackHeaderBox
+  mdia MediaBox
+}
+
 type MovieBox struct {
   box Box
   mvhd MovieHeaderBox
+  tracks []TrackBox
 }
 
 func parseBox(data []byte) (*Box, error) {
@@ -155,8 +176,106 @@ func parseMovieHeaderBox(data []byte, b *Box) (*MovieHeaderBox, error) {
   return &mhb, nil;
 }
 
+func parseTrackHeaderBox(data []byte, b *Box) (*TrackHeaderBox, error) {
+  fb,_ := parseFullBox(data, b);
+  thb := TrackHeaderBox{box: *fb};
+
+  data = data[4:];
+
+  if (fb.version == 1) {
+    thb.creation_time = binary.BigEndian.Uint64(data[0:8]);
+    thb.modification_time = binary.BigEndian.Uint64(data[8:16]);
+    thb.track_id = binary.BigEndian.Uint32(data[16:20]);
+    thb.duration = binary.BigEndian.Uint64(data[24:32]);
+    data = data[32:];
+  } else {
+    thb.creation_time = uint64(binary.BigEndian.Uint32(data[0:4]));
+    thb.modification_time = uint64(binary.BigEndian.Uint32(data[4:8]));
+    thb.track_id = binary.BigEndian.Uint32(data[8:12]);
+    thb.duration = uint64(binary.BigEndian.Uint32(data[16:20]));
+    data = data[20:];
+  }
+
+  data = data[52:];
+
+  fixed := binary.BigEndian.Uint32(data[0:4]);
+  thb.width = float32(fixed) / float32(math.Pow(2, 16));
+
+  fixed2 := binary.BigEndian.Uint32(data[4:8]);
+  thb.height = float32(fixed2) / float32(math.Pow(2, 16));
+
+  return &thb, nil;
+}
+
+func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
+  mb := MediaBox{box: *b};
+
+  tsize := b.headerSize;
+
+  for {
+    b,err := parseBox(data);
+
+    if (err != nil) {
+      return nil, err;
+    }
+
+    fmt.Println("   -", b.Type);
+
+    switch b.Type {
+    }
+
+    tsize += b.Size;
+
+    if (tsize == mb.box.Size) {
+      break;
+    }
+
+    data = data[b.Size:];
+  }
+
+  return &mb, nil;
+
+}
+
+func parseTrackBox(data []byte, b *Box) (*TrackBox, error) {
+  tb := TrackBox{box: *b};
+
+  tsize := b.headerSize;
+
+  for {
+    b,err := parseBox(data);
+
+    if (err != nil) {
+      return nil, err;
+    }
+
+    fmt.Println("  -", b.Type);
+
+    switch b.Type {
+    case "tkhd":
+      thb,_ := parseTrackHeaderBox(data[b.headerSize:], b);
+      tb.tkhd = *thb;
+    case "mdia":
+      mb,_ := parseMediaBox(data[b.headerSize:], b);
+      tb.mdia = *mb;
+    }
+
+    tsize += b.Size;
+
+    if (tsize == tb.box.Size) {
+      break;
+    }
+
+    data = data[b.Size:];
+  }
+
+  return &tb, nil;
+}
+
 func parseMovieBox(data []byte, b *Box) (*MovieBox, error) {
   mb := MovieBox{box: *b};
+
+  tsize := b.headerSize;
 
   for {
     b,err := parseBox(data);
@@ -167,14 +286,19 @@ func parseMovieBox(data []byte, b *Box) (*MovieBox, error) {
 
     fmt.Println(" -", b.Type);
 
-    if (int(b.Size) == len(data)) {
-      break;
-    }
-
     switch b.Type {
     case "mvhd":
       mhb,_ := parseMovieHeaderBox(data[b.headerSize:], b);
       mb.mvhd = *mhb;
+    case "trak":
+      tb,_ := parseTrackBox(data[b.headerSize:], b);
+      mb.tracks = append(mb.tracks, *tb);
+    }
+
+    tsize += b.Size;
+
+    if (tsize == mb.box.Size) {
+      break;
     }
 
     data = data[b.Size:];
