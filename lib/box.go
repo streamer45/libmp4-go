@@ -61,8 +61,30 @@ type TrackHeaderBox struct {
   height float32
 }
 
+type MediaHeaderBox struct {
+  box FullBox
+  creation_time uint64
+  modification_time uint64
+  timescale uint32
+  duration uint64
+  language string
+}
+
+type HandlerBox struct {
+  box FullBox
+  handler_type string
+  name string
+}
+
+type MediaInfoBox struct {
+  box Box
+}
+
 type MediaBox struct {
   box Box
+  mdhd MediaHeaderBox
+  hdlr HandlerBox
+  minf MediaInfoBox
 }
 
 type TrackBox struct {
@@ -207,6 +229,75 @@ func parseTrackHeaderBox(data []byte, b *Box) (*TrackHeaderBox, error) {
   return &thb, nil;
 }
 
+func parseMediaHeaderBox(data []byte, b *Box) (*MediaHeaderBox, error) {
+  fb,_ := parseFullBox(data, b);
+  mhb := MediaHeaderBox{box: *fb};
+
+  data = data[4:];
+
+  if (fb.version == 1) {
+    mhb.creation_time = binary.BigEndian.Uint64(data[0:8]);
+    mhb.modification_time = binary.BigEndian.Uint64(data[8:16]);
+    mhb.timescale = binary.BigEndian.Uint32(data[16:20]);
+    mhb.duration = binary.BigEndian.Uint64(data[20:28]);
+    data = data[28:];
+  } else {
+    mhb.creation_time = uint64(binary.BigEndian.Uint32(data[0:4]));
+    mhb.modification_time = uint64(binary.BigEndian.Uint32(data[4:8]));
+    mhb.timescale = binary.BigEndian.Uint32(data[8:12]);
+    mhb.duration = uint64(binary.BigEndian.Uint32(data[12:16]));
+    data = data[16:];
+  }
+
+  code := [3]byte{};
+
+  code[0] = (data[0] >> 2) + 0x60;
+  code[1] = (((data[0] & 0x03) << 3) | data[1] >> 5) + 0x60;
+  code[2] = (data[1] & 0x1f) + 0x60;
+
+  mhb.language = string(code[0:3]);
+
+  return &mhb, nil;
+}
+
+func parseHandlerBox(data []byte, b *Box) (*HandlerBox, error) {
+  fb,_ := parseFullBox(data, b);
+  hb := HandlerBox{box: *fb};
+  data = data[4:];
+  hb.handler_type = string(data[4:8]);
+  hb.name = string(data[8:b.Size - b.headerSize - 4]);
+  return &hb, nil;
+}
+
+func parseMediaInfoBox(data []byte, b *Box) (*MediaInfoBox, error) {
+  mib := MediaInfoBox{box: *b};
+
+  tsize := b.headerSize;
+
+  for {
+    b,err := parseBox(data);
+
+    if (err != nil) {
+      return nil, err;
+    }
+
+    fmt.Println("    -", b.Type);
+
+    switch b.Type {
+    }
+
+    tsize += b.Size;
+
+    if (tsize == mib.box.Size) {
+      break;
+    }
+
+    data = data[b.Size:];
+  }
+
+  return &mib, nil;
+}
+
 func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
   mb := MediaBox{box: *b};
 
@@ -222,6 +313,15 @@ func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
     fmt.Println("   -", b.Type);
 
     switch b.Type {
+    case "mdhd":
+      mhb,_ := parseMediaHeaderBox(data[b.headerSize:], b);
+      mb.mdhd = *mhb;
+    case "hdlr":
+      hb,_ := parseHandlerBox(data[b.headerSize:], b);
+      mb.hdlr = *hb;
+    case "minf":
+      mib,_ := parseMediaInfoBox(data[b.headerSize:], b);
+      mb.minf = *mib;
     }
 
     tsize += b.Size;
@@ -234,7 +334,6 @@ func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
   }
 
   return &mb, nil;
-
 }
 
 func parseTrackBox(data []byte, b *Box) (*TrackBox, error) {
