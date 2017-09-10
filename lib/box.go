@@ -76,8 +76,38 @@ type HandlerBox struct {
   name string
 }
 
+type VideoSampleDescription struct {
+  width uint16
+  height uint16
+  depth uint16
+}
+
+type SoundSampleDescription struct {
+  channels uint16
+  sample_size uint16
+  sample_rate float32
+}
+
+type SampleEntry struct {
+  box Box
+  data_ref_index uint16
+  sample_desc interface{}
+}
+
+type SampleDescriptionBox struct {
+  box FullBox
+  entry_count uint32
+  entries []SampleEntry
+}
+
+type SampleTableBox struct {
+  box Box
+  stsd SampleDescriptionBox
+}
+
 type MediaInfoBox struct {
   box Box
+  stbl SampleTableBox
 }
 
 type MediaBox struct {
@@ -121,7 +151,7 @@ func parseBox(data []byte) (*Box, error) {
 func parseFullBox(data []byte, b *Box) (*FullBox, error) {
   fb := FullBox{box: *b};
   fb.version = data[0];
-  copy(fb.flags[:], data[1:]);
+  copy(fb.flags[:], data[1:4]);
   return &fb, nil;
 }
 
@@ -269,6 +299,109 @@ func parseHandlerBox(data []byte, b *Box) (*HandlerBox, error) {
   return &hb, nil;
 }
 
+func parseVideoSampleDesc(data []byte) (*VideoSampleDescription, error) {
+  vsd := VideoSampleDescription{};
+  vsd.width = binary.BigEndian.Uint16(data[16:18]);
+  vsd.height = binary.BigEndian.Uint16(data[18:20]);
+  vsd.depth = binary.BigEndian.Uint16(data[66:68]);
+  // TODO add missing info
+  return &vsd, nil;
+}
+
+func parseSoundSampleDesc(data []byte) (*SoundSampleDescription, error) {
+  ssd := SoundSampleDescription{};
+  ssd.channels = binary.BigEndian.Uint16(data[8:10]);
+  ssd.sample_size = binary.BigEndian.Uint16(data[10:12]);
+  fixed := binary.BigEndian.Uint32(data[16:20]);
+  ssd.sample_rate = float32(fixed) / float32(math.Pow(2, 16));
+  return &ssd, nil;
+}
+
+func parseSampleDescBox(data []byte, b *Box) (*SampleDescriptionBox, error) {
+  fb,_ := parseFullBox(data, b);
+  sdb := SampleDescriptionBox{box: *fb};
+
+  data = data[4:];
+
+  sdb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+
+  data = data[4:];
+
+  tsize := b.headerSize + 4 + 4;
+
+  for i := 0; i < int(sdb.entry_count); i++ {
+    b,err := parseBox(data);
+
+    if (err != nil) {
+      return nil, err;
+    }
+
+    fmt.Println("            -", b.Type);
+
+    entry := SampleEntry{box: *b};
+
+    data = data[b.headerSize:];
+
+    entry.data_ref_index = binary.BigEndian.Uint16(data[6:8]);
+
+    data = data[8:];
+
+    switch (b.Type) {
+    case "avc1":
+      vsd,_ := parseVideoSampleDesc(data);
+      entry.sample_desc = *vsd;
+    case "mp4a":
+      ssd,_ := parseSoundSampleDesc(data);
+      entry.sample_desc = *ssd;
+    }
+
+    sdb.entries = append(sdb.entries, entry);
+
+    tsize += b.Size;
+
+    if (tsize == sdb.box.box.Size) {
+      break;
+    }
+
+    data = data[b.Size:];
+  }
+
+  return &sdb, nil;
+}
+
+func parseSampleTableBox(data []byte, b *Box) (*SampleTableBox, error) {
+  stb := SampleTableBox{box: *b};
+
+  tsize := b.headerSize;
+
+  for {
+    b,err := parseBox(data);
+
+    if (err != nil) {
+      return nil, err;
+    }
+
+    fmt.Println("          -", b.Type);
+
+    switch b.Type {
+    case "stsd":
+      sdb,_ := parseSampleDescBox(data[b.headerSize:], b);
+      stb.stsd = *sdb;
+    }
+
+    tsize += b.Size;
+
+    if (tsize == stb.box.Size) {
+      break;
+    }
+
+    data = data[b.Size:];
+  }
+
+  return &stb, nil;
+
+}
+
 func parseMediaInfoBox(data []byte, b *Box) (*MediaInfoBox, error) {
   mib := MediaInfoBox{box: *b};
 
@@ -281,9 +414,12 @@ func parseMediaInfoBox(data []byte, b *Box) (*MediaInfoBox, error) {
       return nil, err;
     }
 
-    fmt.Println("    -", b.Type);
+    fmt.Println("        -", b.Type);
 
     switch b.Type {
+    case "stbl":
+      stb,_ := parseSampleTableBox(data[b.headerSize:], b);
+      mib.stbl = *stb;
     }
 
     tsize += b.Size;
@@ -310,7 +446,7 @@ func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
       return nil, err;
     }
 
-    fmt.Println("   -", b.Type);
+    fmt.Println("      -", b.Type);
 
     switch b.Type {
     case "mdhd":
@@ -348,7 +484,7 @@ func parseTrackBox(data []byte, b *Box) (*TrackBox, error) {
       return nil, err;
     }
 
-    fmt.Println("  -", b.Type);
+    fmt.Println("    -", b.Type);
 
     switch b.Type {
     case "tkhd":
@@ -383,7 +519,7 @@ func parseMovieBox(data []byte, b *Box) (*MovieBox, error) {
       return nil, err;
     }
 
-    fmt.Println(" -", b.Type);
+    fmt.Println("  -", b.Type);
 
     switch b.Type {
     case "mvhd":
