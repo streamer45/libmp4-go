@@ -130,9 +130,56 @@ type SampleDescriptionBox struct {
   entries []SampleEntry
 }
 
+type TimeToSampleBox struct {
+  box FullBox
+  entry_count uint32
+  sample_count []uint32
+  sample_delta []uint32
+}
+
+type SyncSampleBox struct {
+  box FullBox
+  entry_count uint32
+  sample_number []uint32
+}
+
+type CompTimeToSampleBox struct {
+  box FullBox
+  entry_count uint32
+  sample_count []int32
+  sample_offset []int32
+}
+
+type SampleToChunkBox struct {
+  box FullBox
+  entry_count uint32
+  first_chunk []int32
+  samples_per_chunk []int32
+  sample_desc_index []int32
+}
+
+type SampleSizeBox struct {
+  box FullBox
+  sample_size uint32
+  sample_count uint32
+  entry_size []uint32
+}
+
+type ChunkOffsetBox struct {
+  box FullBox
+  entry_count uint32
+  chunk_offset []uint32
+}
+
 type SampleTableBox struct {
   box Box
   stsd SampleDescriptionBox
+  stts TimeToSampleBox
+  stss SyncSampleBox
+  ctss CompTimeToSampleBox
+  stsc SampleToChunkBox
+  stsz SampleSizeBox
+  stco ChunkOffsetBox
 }
 
 type MediaInfoBox struct {
@@ -547,6 +594,129 @@ func parseSampleDescBox(data []byte, b *Box) (*SampleDescriptionBox, error) {
   return &sdb, nil;
 }
 
+func parseTimeToSampleBox(data []byte, b *Box) (*TimeToSampleBox, error) {
+  fb,_ := parseFullBox(data, b);
+  ttsb := TimeToSampleBox{box: *fb};
+  data = data[4:];
+
+  ttsb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+
+  data = data[4:];
+
+  ttsb.sample_count = make([]uint32, ttsb.entry_count);
+  ttsb.sample_delta = make([]uint32, ttsb.entry_count);
+
+  for i := 0; i < int(ttsb.entry_count); i++ {
+    ttsb.sample_count[i] = binary.BigEndian.Uint32(data[0:4]);
+    ttsb.sample_delta[i] = binary.BigEndian.Uint32(data[4:8]);
+    data = data[8:];
+  }
+
+  return &ttsb, nil;
+}
+
+func parseCompTimeToSampleBox(data []byte, b *Box) (*CompTimeToSampleBox, error) {
+  fb,_ := parseFullBox(data, b);
+  ctsb := CompTimeToSampleBox{box: *fb};
+  data = data[4:];
+
+  ctsb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+
+  data = data[4:];
+
+  ctsb.sample_count = make([]int32, ctsb.entry_count);
+  ctsb.sample_offset = make([]int32, ctsb.entry_count);
+
+  for i := 0; i < int(ctsb.entry_count); i++ {
+    ctsb.sample_count[i] = int32(binary.BigEndian.Uint32(data[0:4]));
+    ctsb.sample_offset[i] = int32(binary.BigEndian.Uint32(data[4:8]));
+    data = data[8:];
+  }
+
+  return &ctsb, nil;
+}
+
+func parseSyncSampleBox(data []byte, b *Box) (*SyncSampleBox, error) {
+  fb,_ := parseFullBox(data, b);
+  ssb := SyncSampleBox{box: *fb};
+  data = data[4:];
+
+  ssb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+
+  data = data[4:];
+
+  ssb.sample_number = make([]uint32, ssb.entry_count);
+
+  for i := 0; i < int(ssb.entry_count); i++ {
+    ssb.sample_number[i] = binary.BigEndian.Uint32(data[0:4]);
+    data = data[4:];
+  }
+
+  return &ssb, nil;
+}
+
+func parseSampleToChunkBox(data []byte, b *Box) (*SampleToChunkBox, error) {
+  fb,_ := parseFullBox(data, b);
+  stcb := SampleToChunkBox{box: *fb};
+  data = data[4:];
+
+  stcb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+
+  data = data[4:];
+
+  stcb.first_chunk = make([]int32, stcb.entry_count);
+  stcb.samples_per_chunk = make([]int32, stcb.entry_count);
+  stcb.sample_desc_index = make([]int32, stcb.entry_count);
+
+  for i := 0; i < int(stcb.entry_count); i++ {
+    stcb.first_chunk[i] = int32(binary.BigEndian.Uint32(data[0:4]));
+    stcb.samples_per_chunk[i] = int32(binary.BigEndian.Uint32(data[4:8]));
+    stcb.sample_desc_index[i] = int32(binary.BigEndian.Uint32(data[8:12]));
+    data = data[12:];
+  }
+
+  return &stcb, nil;
+}
+
+func parseSampleSizeBox(data []byte, b *Box) (*SampleSizeBox, error) {
+  fb,_ := parseFullBox(data, b);
+  ssb := SampleSizeBox{box: *fb};
+  data = data[4:];
+
+  ssb.sample_size = binary.BigEndian.Uint32(data[0:4]);
+  ssb.sample_count = binary.BigEndian.Uint32(data[4:8]);
+
+  data = data[8:];
+
+  if (ssb.sample_size == 0) {
+    ssb.entry_size = make([]uint32, ssb.sample_count);
+    for i := 0; i < int(ssb.sample_count); i++ {
+      ssb.entry_size[i] = binary.BigEndian.Uint32(data[0:4]);
+      data = data[4:];
+    }
+  }
+
+  return &ssb, nil;
+}
+
+func parseChunkOffsetBox(data []byte, b *Box) (*ChunkOffsetBox, error) {
+  fb,_ := parseFullBox(data, b);
+  cob := ChunkOffsetBox{box: *fb};
+  data = data[4:];
+
+  cob.entry_count = binary.BigEndian.Uint32(data[0:4]);
+
+  data = data[4:];
+
+  cob.chunk_offset = make([]uint32, cob.entry_count);
+  for i := 0; i < int(cob.entry_count); i++ {
+    cob.chunk_offset[i] = binary.BigEndian.Uint32(data[0:4]);
+    data = data[4:];
+  }
+
+  return &cob, nil;
+}
+
 func parseSampleTableBox(data []byte, b *Box) (*SampleTableBox, error) {
   stb := SampleTableBox{box: *b};
 
@@ -563,8 +733,26 @@ func parseSampleTableBox(data []byte, b *Box) (*SampleTableBox, error) {
 
     switch b.Type {
     case "stsd":
-      sdb,_ := parseSampleDescBox(data[b.headerSize:], b);
+      sdb,_ := parseSampleDescBox(data[b.headerSize:b.Size], b);
       stb.stsd = *sdb;
+    case "stts":
+      ttsb,_ := parseTimeToSampleBox(data[b.headerSize:b.Size], b);
+      stb.stts = *ttsb;
+    case "stss":
+      ssb,_ := parseSyncSampleBox(data[b.headerSize:b.Size], b);
+      stb.stss = *ssb;
+    case "ctts":
+      ctts,_ := parseCompTimeToSampleBox(data[b.headerSize:b.Size], b);
+      stb.ctss = *ctts;
+    case "stsc":
+      stcb,_ := parseSampleToChunkBox(data[b.headerSize:b.Size], b);
+      stb.stsc = *stcb;
+    case "stsz":
+      ssb,_ := parseSampleSizeBox(data[b.headerSize:b.Size], b);
+      stb.stsz = *ssb;
+    case "stco":
+      cob,_ := parseChunkOffsetBox(data[b.headerSize:b.Size], b);
+      stb.stco = *cob;
     }
 
     tsize += b.Size;

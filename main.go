@@ -42,7 +42,7 @@ func main() {
     case mp4.MediaDataBox:
       fmt.Printf("%+v\n", x.(mp4.MediaDataBox));
     case mp4.MovieBox:
-      fmt.Printf("%+v\n", x.(mp4.MovieBox));
+      //fmt.Printf("%+v\n", x.(mp4.MovieBox));
     }
   }
 
