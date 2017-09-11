@@ -3,6 +3,7 @@ package mp4
 import (
   "fmt"
   "math"
+  "errors"
   "encoding/binary"
 )
 
@@ -76,10 +77,38 @@ type HandlerBox struct {
   name string
 }
 
+type AVCcBox struct {
+  box Box
+  version uint8
+  profile uint8
+  level uint8
+  size_len uint8
+  sps [][]byte
+  pps [][]byte
+}
+
+type PixelAspectRatioBox struct {
+  box Box
+  hSpacing uint32
+  vSpacing uint32
+}
+
 type VideoSampleDescription struct {
   width uint16
   height uint16
   depth uint16
+}
+
+type ESDescriptor struct {
+  tag uint8
+  len uint8
+  id uint16
+  config []byte
+}
+
+type ElementaryStreamDescBox struct {
+  box Box
+  esd ESDescriptor
 }
 
 type SoundSampleDescription struct {
@@ -92,6 +121,7 @@ type SampleEntry struct {
   box Box
   data_ref_index uint16
   sample_desc interface{}
+  extensions []interface{}
 }
 
 type SampleDescriptionBox struct {
@@ -299,21 +329,169 @@ func parseHandlerBox(data []byte, b *Box) (*HandlerBox, error) {
   return &hb, nil;
 }
 
-func parseVideoSampleDesc(data []byte) (*VideoSampleDescription, error) {
+func parsePixelAspectRatioBox(data []byte, b *Box) (*PixelAspectRatioBox, error) {
+  pasp := PixelAspectRatioBox{box: *b};
+  pasp.hSpacing = binary.BigEndian.Uint32(data[0:4]);
+  pasp.vSpacing = binary.BigEndian.Uint32(data[4:8]);
+  return &pasp, nil;
+}
+
+func parseAVCcBox(data []byte, b *Box) (*AVCcBox, error) {
+  avcc := AVCcBox{box: *b};
+
+  avcc.version = data[0];
+  avcc.profile = data[1];
+  avcc.level = data[3];
+  avcc.size_len = (data[4] & 0x03) + 1;
+
+  nsps := int(data[5] & 0x1f);
+  data = data[6:];
+
+  for i := 0; i < nsps; i++ {
+    len := binary.BigEndian.Uint16(data[0:2]);
+    sps := make([]byte, len);
+    copy(sps, data[2: len + 2]);
+    avcc.sps = append(avcc.sps, sps);
+    data = data[len + 2:];
+  }
+
+  npps := int(data[0]);
+  data = data[1:];
+
+  for i := 0; i < npps; i++ {
+    len := binary.BigEndian.Uint16(data[0:2]);
+    pps := make([]byte, len);
+    copy(pps, data[2: len + 2]);
+    avcc.pps = append(avcc.pps, pps);
+    data = data[len + 2:];
+  }
+
+  return &avcc, nil;
+}
+
+func parseVideoSampleDesc(data []byte, entry *SampleEntry) (*VideoSampleDescription, error) {
   vsd := VideoSampleDescription{};
   vsd.width = binary.BigEndian.Uint16(data[16:18]);
   vsd.height = binary.BigEndian.Uint16(data[18:20]);
   vsd.depth = binary.BigEndian.Uint16(data[66:68]);
   // TODO add missing info
+
+  data = data[70:];
+
+  tsize := entry.box.headerSize + 8 + 70;
+
+  for {
+    b,err := parseBox(data);
+
+    if (err != nil) {
+      return nil, err;
+    }
+
+    fmt.Println("              -", b.Type);
+
+    switch (b.Type) {
+    case "avcC":
+      avcc,_ := parseAVCcBox(data[b.headerSize:], b);
+      entry.extensions = append(entry.extensions, *avcc);
+    case "pasp":
+      pasp,_ := parsePixelAspectRatioBox(data[b.headerSize:], b);
+      entry.extensions = append(entry.extensions, *pasp);
+    }
+
+    tsize += b.Size;
+
+    if (tsize == entry.box.Size) {
+      break;
+    }
+
+    data = data[b.Size:];
+  }
+
   return &vsd, nil;
 }
 
-func parseSoundSampleDesc(data []byte) (*SoundSampleDescription, error) {
+func parseESDescriptor(data []byte) (*ESDescriptor, error) {
+  d := ESDescriptor{};
+
+  d.tag = data[0];
+  d.len = data[4];
+  d.id = binary.BigEndian.Uint16(data[5:7]);
+
+  data = data[8:];
+  tag := data[0];
+
+  if (tag != 0x04) {
+    return nil, errors.New("invalid descriptor tag");
+  }
+
+  len := data[4];
+  data = data[4 + 14:];
+  tag = data[0];
+
+  if (tag != 0x05) {
+    return nil, errors.New("invalid descriptor tag");
+  }
+
+  len = data[4];
+  data = data[5:];
+  d.config = make([]byte, len);
+  copy(d.config, data[:len]);
+
+  return &d, nil;
+}
+
+func parseElementaryStreamDescBox(data []byte, b *Box) (*ElementaryStreamDescBox, error) {
+  esds := ElementaryStreamDescBox{box: *b};
+  data = data[4:];
+
+  d,err := parseESDescriptor(data);
+
+  if (err != nil) {
+    fmt.Println(err)
+  }
+
+  esds.esd = *d;
+
+  //fmt.Println(d);
+
+  return &esds, nil;
+}
+
+func parseSoundSampleDesc(data []byte, entry *SampleEntry) (*SoundSampleDescription, error) {
   ssd := SoundSampleDescription{};
   ssd.channels = binary.BigEndian.Uint16(data[8:10]);
   ssd.sample_size = binary.BigEndian.Uint16(data[10:12]);
   fixed := binary.BigEndian.Uint32(data[16:20]);
   ssd.sample_rate = float32(fixed) / float32(math.Pow(2, 16));
+
+  tsize := entry.box.headerSize + 8 + 20;
+
+  data = data[20:];
+
+  for {
+    b,err := parseBox(data);
+
+    if (err != nil) {
+      return nil, err;
+    }
+
+    fmt.Println("              -", b.Type);
+
+    switch (b.Type) {
+    case "esds":
+      esds,_ := parseElementaryStreamDescBox(data[b.headerSize:b.Size], b);
+      entry.extensions = append(entry.extensions, *esds);
+    }
+
+    tsize += b.Size;
+
+    if (tsize == entry.box.Size) {
+      break;
+    }
+
+    data = data[b.Size:];
+  }
+
   return &ssd, nil;
 }
 
@@ -348,10 +526,10 @@ func parseSampleDescBox(data []byte, b *Box) (*SampleDescriptionBox, error) {
 
     switch (b.Type) {
     case "avc1":
-      vsd,_ := parseVideoSampleDesc(data);
+      vsd,_ := parseVideoSampleDesc(data, &entry);
       entry.sample_desc = *vsd;
     case "mp4a":
-      ssd,_ := parseSoundSampleDesc(data);
+      ssd,_ := parseSoundSampleDesc(data, &entry);
       entry.sample_desc = *ssd;
     }
 
