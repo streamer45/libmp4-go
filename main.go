@@ -5,6 +5,8 @@ import (
   "os"
   "log"
 
+  "encoding/json"
+
   mp4 "github.com/streamer45/mp4/lib"
 )
 
@@ -33,17 +35,30 @@ func main() {
     log.Fatal(err);
   }
 
-  for _, x := range res.Boxes {
-    switch x.(type) {
-    case mp4.FileTypeBox:
-      fmt.Printf("%+v\n", x.(mp4.FileTypeBox));
-    case mp4.FreeSpaceBox:
-      fmt.Printf("%+v\n", x.(mp4.FreeSpaceBox));
-    case mp4.MediaDataBox:
-      fmt.Printf("%+v\n", x.(mp4.MediaDataBox));
-    case mp4.MovieBox:
-      //fmt.Printf("%+v\n", x.(mp4.MovieBox));
-    }
+  js,e := json.Marshal(res.Boxes);
+
+  if (e != nil) {
+    fmt.Println(e);
+  }
+
+  jsFile,err := os.OpenFile("./out.json", os.O_RDWR | os.O_CREATE, 0600);
+
+  if (err != nil) {
+    log.Fatal(err)
+  }
+
+  _,err = jsFile.Write(js);
+
+  if (err != nil) {
+    log.Fatal(err)
+  }
+
+  fmt.Println("wrote full parsing result to ./out.json");
+
+  err = jsFile.Close();
+
+  if (err != nil) {
+    log.Fatal(err)
   }
 
   err = f.Close();

@@ -7,205 +7,6 @@ import (
   "encoding/binary"
 )
 
-const BOX_HDR_SZ = 8;
-const BOX_HDR_SZ_EXT = 16;
-
-type Box struct {
-  Size uint64
-  Type string
-  headerSize uint64
-}
-
-type FullBox struct {
-  box Box
-  version uint8
-  flags [3]byte
-}
-
-type FileTypeBox struct {
-  box Box
-  major_brand string
-  minor_version uint32
-  compatible_brands []string
-}
-
-type FreeSpaceBox struct {
-  box Box
-  data []byte
-}
-
-type MediaDataBox struct {
-  box Box
-  data []byte
-}
-
-type MovieHeaderBox struct {
-  box FullBox
-  creation_time uint64
-  modification_time uint64
-  timescale uint32
-  duration uint64
-  rate float32
-  volume float32
-  matrix [3][3]float32
-  pre_defined [6][4]byte
-  next_track_id uint32
-}
-
-type TrackHeaderBox struct {
-  box FullBox
-  creation_time uint64
-  modification_time uint64
-  track_id uint32
-  duration uint64
-  width float32
-  height float32
-}
-
-type MediaHeaderBox struct {
-  box FullBox
-  creation_time uint64
-  modification_time uint64
-  timescale uint32
-  duration uint64
-  language string
-}
-
-type HandlerBox struct {
-  box FullBox
-  handler_type string
-  name string
-}
-
-type AVCcBox struct {
-  box Box
-  version uint8
-  profile uint8
-  level uint8
-  size_len uint8
-  sps [][]byte
-  pps [][]byte
-}
-
-type PixelAspectRatioBox struct {
-  box Box
-  hSpacing uint32
-  vSpacing uint32
-}
-
-type VideoSampleDescription struct {
-  width uint16
-  height uint16
-  depth uint16
-}
-
-type ESDescriptor struct {
-  tag uint8
-  len uint8
-  id uint16
-  config []byte
-}
-
-type ElementaryStreamDescBox struct {
-  box Box
-  esd ESDescriptor
-}
-
-type SoundSampleDescription struct {
-  channels uint16
-  sample_size uint16
-  sample_rate float32
-}
-
-type SampleEntry struct {
-  box Box
-  data_ref_index uint16
-  sample_desc interface{}
-  extensions []interface{}
-}
-
-type SampleDescriptionBox struct {
-  box FullBox
-  entry_count uint32
-  entries []SampleEntry
-}
-
-type TimeToSampleBox struct {
-  box FullBox
-  entry_count uint32
-  sample_count []uint32
-  sample_delta []uint32
-}
-
-type SyncSampleBox struct {
-  box FullBox
-  entry_count uint32
-  sample_number []uint32
-}
-
-type CompTimeToSampleBox struct {
-  box FullBox
-  entry_count uint32
-  sample_count []int32
-  sample_offset []int32
-}
-
-type SampleToChunkBox struct {
-  box FullBox
-  entry_count uint32
-  first_chunk []int32
-  samples_per_chunk []int32
-  sample_desc_index []int32
-}
-
-type SampleSizeBox struct {
-  box FullBox
-  sample_size uint32
-  sample_count uint32
-  entry_size []uint32
-}
-
-type ChunkOffsetBox struct {
-  box FullBox
-  entry_count uint32
-  chunk_offset []uint32
-}
-
-type SampleTableBox struct {
-  box Box
-  stsd SampleDescriptionBox
-  stts TimeToSampleBox
-  stss SyncSampleBox
-  ctss CompTimeToSampleBox
-  stsc SampleToChunkBox
-  stsz SampleSizeBox
-  stco ChunkOffsetBox
-}
-
-type MediaInfoBox struct {
-  box Box
-  stbl SampleTableBox
-}
-
-type MediaBox struct {
-  box Box
-  mdhd MediaHeaderBox
-  hdlr HandlerBox
-  minf MediaInfoBox
-}
-
-type TrackBox struct {
-  box Box
-  tkhd TrackHeaderBox
-  mdia MediaBox
-}
-
-type MovieBox struct {
-  box Box
-  mvhd MovieHeaderBox
-  tracks []TrackBox
-}
-
 func parseBox(data []byte) (*Box, error) {
   var b Box;
 
@@ -226,133 +27,133 @@ func parseBox(data []byte) (*Box, error) {
 }
 
 func parseFullBox(data []byte, b *Box) (*FullBox, error) {
-  fb := FullBox{box: *b};
-  fb.version = data[0];
-  copy(fb.flags[:], data[1:4]);
+  fb := FullBox{Box: *b};
+  fb.Version = data[0];
+  copy(fb.Flags[:], data[1:4]);
   return &fb, nil;
 }
 
 func parseFileTypeBox(data []byte, b *Box) (*FileTypeBox, error) {
-  ftb := FileTypeBox{box: *b};
+  ftb := FileTypeBox{Box: *b};
 
-  ftb.major_brand = string(data[0:4]);
-  ftb.minor_version = binary.BigEndian.Uint32(data[4:8]);
+  ftb.MajorBrand = string(data[0:4]);
+  ftb.MinorVersion = binary.BigEndian.Uint32(data[4:8]);
 
   data = data[8:];
 
-  n := int((ftb.box.Size - ftb.box.headerSize - 8) / 4);
+  n := int((ftb.Box.Size - ftb.Box.headerSize - 8) / 4);
 
-  ftb.compatible_brands = make([]string, n);
+  ftb.CompatibleBrands = make([]string, n);
 
   for i := 0; i < n; i++ {
-    ftb.compatible_brands[i] = string(data[i * 4: (i + 1) * 4]);
+    ftb.CompatibleBrands[i] = string(data[i * 4: (i + 1) * 4]);
   }
 
   return &ftb, nil;
 }
 
 func parseFreeSpaceBox(data []byte, b *Box) (*FreeSpaceBox, error) {
-  fsb := FreeSpaceBox{box: *b};
+  fsb := FreeSpaceBox{Box: *b};
   fsb.data = data;
   return &fsb, nil;
 }
 
 func parseMediaDataBox(data []byte, b *Box) (*MediaDataBox, error) {
-  mdb := MediaDataBox{box: *b};
+  mdb := MediaDataBox{Box: *b};
   mdb.data = data;
   return &mdb, nil;
 }
 
 func parseMovieHeaderBox(data []byte, b *Box) (*MovieHeaderBox, error) {
   fb,_ := parseFullBox(data, b);
-  mhb := MovieHeaderBox{box: *fb};
+  mhb := MovieHeaderBox{Box: *fb};
 
   data = data[4:];
 
-  if (fb.version == 1) {
-    mhb.creation_time = binary.BigEndian.Uint64(data[0:8]);
-    mhb.modification_time = binary.BigEndian.Uint64(data[8:16]);
-    mhb.timescale = binary.BigEndian.Uint32(data[16:20]);
-    mhb.duration = binary.BigEndian.Uint64(data[20:28]);
+  if (fb.Version == 1) {
+    mhb.Ctime = binary.BigEndian.Uint64(data[0:8]);
+    mhb.Mtime = binary.BigEndian.Uint64(data[8:16]);
+    mhb.Timescale = binary.BigEndian.Uint32(data[16:20]);
+    mhb.Duration = binary.BigEndian.Uint64(data[20:28]);
     data = data[28:];
   } else {
-    mhb.creation_time = uint64(binary.BigEndian.Uint32(data[0:4]));
-    mhb.modification_time = uint64(binary.BigEndian.Uint32(data[4:8]));
-    mhb.timescale = binary.BigEndian.Uint32(data[8:12]);
-    mhb.duration = uint64(binary.BigEndian.Uint32(data[12:16]));
+    mhb.Ctime = uint64(binary.BigEndian.Uint32(data[0:4]));
+    mhb.Mtime = uint64(binary.BigEndian.Uint32(data[4:8]));
+    mhb.Timescale = binary.BigEndian.Uint32(data[8:12]);
+    mhb.Duration = uint64(binary.BigEndian.Uint32(data[12:16]));
     data = data[16:];
   }
 
   fixed := binary.BigEndian.Uint32(data[0:4]);
-  mhb.rate = float32(fixed) / float32(math.Pow(2, 16));
+  mhb.Rate = float32(fixed) / float32(math.Pow(2, 16));
 
   fixed2 := binary.BigEndian.Uint16(data[4:6]);
-  mhb.volume = float32(fixed2) / float32(math.Pow(2, 8));
+  mhb.Volume = float32(fixed2) / float32(math.Pow(2, 8));
 
   data = data[16:];
 
   for i:=0; i < 3; i++ {
-    mhb.matrix[i][0] = float32(binary.BigEndian.Uint32(data[0:4])) / float32(math.Pow(2, 16));
-    mhb.matrix[i][1] = float32(binary.BigEndian.Uint32(data[4:8])) / float32(math.Pow(2, 16));
-    mhb.matrix[i][2] = float32(binary.BigEndian.Uint32(data[8:12])) / float32(math.Pow(2, 30));
+    mhb.Matrix[i][0] = float32(binary.BigEndian.Uint32(data[0:4])) / float32(math.Pow(2, 16));
+    mhb.Matrix[i][1] = float32(binary.BigEndian.Uint32(data[4:8])) / float32(math.Pow(2, 16));
+    mhb.Matrix[i][2] = float32(binary.BigEndian.Uint32(data[8:12])) / float32(math.Pow(2, 30));
     data = data[12:];
   }
 
   data = data[9 * 4 + 6 * 4:];
 
-  mhb.next_track_id = binary.BigEndian.Uint32(data[0:4]);
+  mhb.NextTrackID = binary.BigEndian.Uint32(data[0:4]);
 
   return &mhb, nil;
 }
 
 func parseTrackHeaderBox(data []byte, b *Box) (*TrackHeaderBox, error) {
   fb,_ := parseFullBox(data, b);
-  thb := TrackHeaderBox{box: *fb};
+  thb := TrackHeaderBox{Box: *fb};
 
   data = data[4:];
 
-  if (fb.version == 1) {
-    thb.creation_time = binary.BigEndian.Uint64(data[0:8]);
-    thb.modification_time = binary.BigEndian.Uint64(data[8:16]);
-    thb.track_id = binary.BigEndian.Uint32(data[16:20]);
-    thb.duration = binary.BigEndian.Uint64(data[24:32]);
+  if (fb.Version == 1) {
+    thb.Ctime = binary.BigEndian.Uint64(data[0:8]);
+    thb.Mtime = binary.BigEndian.Uint64(data[8:16]);
+    thb.TrackID = binary.BigEndian.Uint32(data[16:20]);
+    thb.Duration = binary.BigEndian.Uint64(data[24:32]);
     data = data[32:];
   } else {
-    thb.creation_time = uint64(binary.BigEndian.Uint32(data[0:4]));
-    thb.modification_time = uint64(binary.BigEndian.Uint32(data[4:8]));
-    thb.track_id = binary.BigEndian.Uint32(data[8:12]);
-    thb.duration = uint64(binary.BigEndian.Uint32(data[16:20]));
+    thb.Ctime = uint64(binary.BigEndian.Uint32(data[0:4]));
+    thb.Mtime = uint64(binary.BigEndian.Uint32(data[4:8]));
+    thb.TrackID = binary.BigEndian.Uint32(data[8:12]);
+    thb.Duration = uint64(binary.BigEndian.Uint32(data[16:20]));
     data = data[20:];
   }
 
   data = data[52:];
 
   fixed := binary.BigEndian.Uint32(data[0:4]);
-  thb.width = float32(fixed) / float32(math.Pow(2, 16));
+  thb.Width = float32(fixed) / float32(math.Pow(2, 16));
 
   fixed2 := binary.BigEndian.Uint32(data[4:8]);
-  thb.height = float32(fixed2) / float32(math.Pow(2, 16));
+  thb.Height = float32(fixed2) / float32(math.Pow(2, 16));
 
   return &thb, nil;
 }
 
 func parseMediaHeaderBox(data []byte, b *Box) (*MediaHeaderBox, error) {
   fb,_ := parseFullBox(data, b);
-  mhb := MediaHeaderBox{box: *fb};
+  mhb := MediaHeaderBox{Box: *fb};
 
   data = data[4:];
 
-  if (fb.version == 1) {
-    mhb.creation_time = binary.BigEndian.Uint64(data[0:8]);
-    mhb.modification_time = binary.BigEndian.Uint64(data[8:16]);
-    mhb.timescale = binary.BigEndian.Uint32(data[16:20]);
-    mhb.duration = binary.BigEndian.Uint64(data[20:28]);
+  if (fb.Version == 1) {
+    mhb.Ctime = binary.BigEndian.Uint64(data[0:8]);
+    mhb.Mtime = binary.BigEndian.Uint64(data[8:16]);
+    mhb.Timescale = binary.BigEndian.Uint32(data[16:20]);
+    mhb.Duration = binary.BigEndian.Uint64(data[20:28]);
     data = data[28:];
   } else {
-    mhb.creation_time = uint64(binary.BigEndian.Uint32(data[0:4]));
-    mhb.modification_time = uint64(binary.BigEndian.Uint32(data[4:8]));
-    mhb.timescale = binary.BigEndian.Uint32(data[8:12]);
-    mhb.duration = uint64(binary.BigEndian.Uint32(data[12:16]));
+    mhb.Ctime = uint64(binary.BigEndian.Uint32(data[0:4]));
+    mhb.Mtime = uint64(binary.BigEndian.Uint32(data[4:8]));
+    mhb.Timescale = binary.BigEndian.Uint32(data[8:12]);
+    mhb.Duration = uint64(binary.BigEndian.Uint32(data[12:16]));
     data = data[16:];
   }
 
@@ -362,34 +163,34 @@ func parseMediaHeaderBox(data []byte, b *Box) (*MediaHeaderBox, error) {
   code[1] = (((data[0] & 0x03) << 3) | data[1] >> 5) + 0x60;
   code[2] = (data[1] & 0x1f) + 0x60;
 
-  mhb.language = string(code[0:3]);
+  mhb.Language = string(code[0:3]);
 
   return &mhb, nil;
 }
 
 func parseHandlerBox(data []byte, b *Box) (*HandlerBox, error) {
   fb,_ := parseFullBox(data, b);
-  hb := HandlerBox{box: *fb};
+  hb := HandlerBox{Box: *fb};
   data = data[4:];
-  hb.handler_type = string(data[4:8]);
-  hb.name = string(data[8:b.Size - b.headerSize - 4]);
+  hb.HandlerType = string(data[4:8]);
+  hb.Name = string(data[8 + 12:b.Size - b.headerSize - 4 - 1]);
   return &hb, nil;
 }
 
 func parsePixelAspectRatioBox(data []byte, b *Box) (*PixelAspectRatioBox, error) {
-  pasp := PixelAspectRatioBox{box: *b};
-  pasp.hSpacing = binary.BigEndian.Uint32(data[0:4]);
-  pasp.vSpacing = binary.BigEndian.Uint32(data[4:8]);
+  pasp := PixelAspectRatioBox{Box: *b};
+  pasp.HSpacing = binary.BigEndian.Uint32(data[0:4]);
+  pasp.VSpacing = binary.BigEndian.Uint32(data[4:8]);
   return &pasp, nil;
 }
 
 func parseAVCcBox(data []byte, b *Box) (*AVCcBox, error) {
-  avcc := AVCcBox{box: *b};
+  avcc := AVCcBox{Box: *b};
 
-  avcc.version = data[0];
-  avcc.profile = data[1];
-  avcc.level = data[3];
-  avcc.size_len = (data[4] & 0x03) + 1;
+  avcc.Version = data[0];
+  avcc.Profile = data[1];
+  avcc.Level = data[3];
+  avcc.SizeLen = (data[4] & 0x03) + 1;
 
   nsps := int(data[5] & 0x1f);
   data = data[6:];
@@ -398,7 +199,7 @@ func parseAVCcBox(data []byte, b *Box) (*AVCcBox, error) {
     len := binary.BigEndian.Uint16(data[0:2]);
     sps := make([]byte, len);
     copy(sps, data[2: len + 2]);
-    avcc.sps = append(avcc.sps, sps);
+    avcc.SPS = append(avcc.SPS, sps);
     data = data[len + 2:];
   }
 
@@ -409,7 +210,7 @@ func parseAVCcBox(data []byte, b *Box) (*AVCcBox, error) {
     len := binary.BigEndian.Uint16(data[0:2]);
     pps := make([]byte, len);
     copy(pps, data[2: len + 2]);
-    avcc.pps = append(avcc.pps, pps);
+    avcc.PPS = append(avcc.PPS, pps);
     data = data[len + 2:];
   }
 
@@ -418,14 +219,14 @@ func parseAVCcBox(data []byte, b *Box) (*AVCcBox, error) {
 
 func parseVideoSampleDesc(data []byte, entry *SampleEntry) (*VideoSampleDescription, error) {
   vsd := VideoSampleDescription{};
-  vsd.width = binary.BigEndian.Uint16(data[16:18]);
-  vsd.height = binary.BigEndian.Uint16(data[18:20]);
-  vsd.depth = binary.BigEndian.Uint16(data[66:68]);
+  vsd.Width = binary.BigEndian.Uint16(data[16:18]);
+  vsd.Height = binary.BigEndian.Uint16(data[18:20]);
+  vsd.Depth = binary.BigEndian.Uint16(data[66:68]);
   // TODO add missing info
 
   data = data[70:];
 
-  tsize := entry.box.headerSize + 8 + 70;
+  tsize := entry.Box.headerSize + 8 + 70;
 
   for {
     b,err := parseBox(data);
@@ -439,15 +240,15 @@ func parseVideoSampleDesc(data []byte, entry *SampleEntry) (*VideoSampleDescript
     switch (b.Type) {
     case "avcC":
       avcc,_ := parseAVCcBox(data[b.headerSize:], b);
-      entry.extensions = append(entry.extensions, *avcc);
+      entry.Extensions = append(entry.Extensions, *avcc);
     case "pasp":
       pasp,_ := parsePixelAspectRatioBox(data[b.headerSize:], b);
-      entry.extensions = append(entry.extensions, *pasp);
+      entry.Extensions = append(entry.Extensions, *pasp);
     }
 
     tsize += b.Size;
 
-    if (tsize == entry.box.Size) {
+    if (tsize == entry.Box.Size) {
       break;
     }
 
@@ -460,9 +261,9 @@ func parseVideoSampleDesc(data []byte, entry *SampleEntry) (*VideoSampleDescript
 func parseESDescriptor(data []byte) (*ESDescriptor, error) {
   d := ESDescriptor{};
 
-  d.tag = data[0];
-  d.len = data[4];
-  d.id = binary.BigEndian.Uint16(data[5:7]);
+  d.Tag = data[0];
+  d.Length = data[4];
+  d.Id = binary.BigEndian.Uint16(data[5:7]);
 
   data = data[8:];
   tag := data[0];
@@ -481,14 +282,14 @@ func parseESDescriptor(data []byte) (*ESDescriptor, error) {
 
   len = data[4];
   data = data[5:];
-  d.config = make([]byte, len);
-  copy(d.config, data[:len]);
+  d.Config = make([]byte, len);
+  copy(d.Config, data[:len]);
 
   return &d, nil;
 }
 
 func parseElementaryStreamDescBox(data []byte, b *Box) (*ElementaryStreamDescBox, error) {
-  esds := ElementaryStreamDescBox{box: *b};
+  esds := ElementaryStreamDescBox{Box: *b};
   data = data[4:];
 
   d,err := parseESDescriptor(data);
@@ -497,21 +298,19 @@ func parseElementaryStreamDescBox(data []byte, b *Box) (*ElementaryStreamDescBox
     fmt.Println(err)
   }
 
-  esds.esd = *d;
-
-  //fmt.Println(d);
+  esds.Esd = *d;
 
   return &esds, nil;
 }
 
 func parseSoundSampleDesc(data []byte, entry *SampleEntry) (*SoundSampleDescription, error) {
   ssd := SoundSampleDescription{};
-  ssd.channels = binary.BigEndian.Uint16(data[8:10]);
-  ssd.sample_size = binary.BigEndian.Uint16(data[10:12]);
+  ssd.Channels = binary.BigEndian.Uint16(data[8:10]);
+  ssd.SampleSize = binary.BigEndian.Uint16(data[10:12]);
   fixed := binary.BigEndian.Uint32(data[16:20]);
-  ssd.sample_rate = float32(fixed) / float32(math.Pow(2, 16));
+  ssd.SampleRate = float32(fixed) / float32(math.Pow(2, 16));
 
-  tsize := entry.box.headerSize + 8 + 20;
+  tsize := entry.Box.headerSize + 8 + 20;
 
   data = data[20:];
 
@@ -527,12 +326,12 @@ func parseSoundSampleDesc(data []byte, entry *SampleEntry) (*SoundSampleDescript
     switch (b.Type) {
     case "esds":
       esds,_ := parseElementaryStreamDescBox(data[b.headerSize:b.Size], b);
-      entry.extensions = append(entry.extensions, *esds);
+      entry.Extensions = append(entry.Extensions, *esds);
     }
 
     tsize += b.Size;
 
-    if (tsize == entry.box.Size) {
+    if (tsize == entry.Box.Size) {
       break;
     }
 
@@ -544,17 +343,17 @@ func parseSoundSampleDesc(data []byte, entry *SampleEntry) (*SoundSampleDescript
 
 func parseSampleDescBox(data []byte, b *Box) (*SampleDescriptionBox, error) {
   fb,_ := parseFullBox(data, b);
-  sdb := SampleDescriptionBox{box: *fb};
+  sdb := SampleDescriptionBox{Box: *fb};
 
   data = data[4:];
 
-  sdb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+  sdb.EntryCount = binary.BigEndian.Uint32(data[0:4]);
 
   data = data[4:];
 
   tsize := b.headerSize + 4 + 4;
 
-  for i := 0; i < int(sdb.entry_count); i++ {
+  for i := 0; i < int(sdb.EntryCount); i++ {
     b,err := parseBox(data);
 
     if (err != nil) {
@@ -563,28 +362,28 @@ func parseSampleDescBox(data []byte, b *Box) (*SampleDescriptionBox, error) {
 
     fmt.Println("            -", b.Type);
 
-    entry := SampleEntry{box: *b};
+    entry := SampleEntry{Box: *b};
 
     data = data[b.headerSize:];
 
-    entry.data_ref_index = binary.BigEndian.Uint16(data[6:8]);
+    entry.DataRefIndex = binary.BigEndian.Uint16(data[6:8]);
 
     data = data[8:];
 
     switch (b.Type) {
     case "avc1":
       vsd,_ := parseVideoSampleDesc(data, &entry);
-      entry.sample_desc = *vsd;
+      entry.SampleDesc = *vsd;
     case "mp4a":
       ssd,_ := parseSoundSampleDesc(data, &entry);
-      entry.sample_desc = *ssd;
+      entry.SampleDesc = *ssd;
     }
 
-    sdb.entries = append(sdb.entries, entry);
+    sdb.Entries = append(sdb.Entries, entry);
 
     tsize += b.Size;
 
-    if (tsize == sdb.box.box.Size) {
+    if (tsize == sdb.Box.Box.Size) {
       break;
     }
 
@@ -596,19 +395,19 @@ func parseSampleDescBox(data []byte, b *Box) (*SampleDescriptionBox, error) {
 
 func parseTimeToSampleBox(data []byte, b *Box) (*TimeToSampleBox, error) {
   fb,_ := parseFullBox(data, b);
-  ttsb := TimeToSampleBox{box: *fb};
+  ttsb := TimeToSampleBox{Box: *fb};
   data = data[4:];
 
-  ttsb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+  ttsb.EntryCount = binary.BigEndian.Uint32(data[0:4]);
 
   data = data[4:];
 
-  ttsb.sample_count = make([]uint32, ttsb.entry_count);
-  ttsb.sample_delta = make([]uint32, ttsb.entry_count);
+  ttsb.SampleCount = make([]uint32, ttsb.EntryCount);
+  ttsb.SampleDelta = make([]uint32, ttsb.EntryCount);
 
-  for i := 0; i < int(ttsb.entry_count); i++ {
-    ttsb.sample_count[i] = binary.BigEndian.Uint32(data[0:4]);
-    ttsb.sample_delta[i] = binary.BigEndian.Uint32(data[4:8]);
+  for i := 0; i < int(ttsb.EntryCount); i++ {
+    ttsb.SampleCount[i] = binary.BigEndian.Uint32(data[0:4]);
+    ttsb.SampleDelta[i] = binary.BigEndian.Uint32(data[4:8]);
     data = data[8:];
   }
 
@@ -617,19 +416,19 @@ func parseTimeToSampleBox(data []byte, b *Box) (*TimeToSampleBox, error) {
 
 func parseCompTimeToSampleBox(data []byte, b *Box) (*CompTimeToSampleBox, error) {
   fb,_ := parseFullBox(data, b);
-  ctsb := CompTimeToSampleBox{box: *fb};
+  ctsb := CompTimeToSampleBox{Box: *fb};
   data = data[4:];
 
-  ctsb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+  ctsb.EntryCount = binary.BigEndian.Uint32(data[0:4]);
 
   data = data[4:];
 
-  ctsb.sample_count = make([]int32, ctsb.entry_count);
-  ctsb.sample_offset = make([]int32, ctsb.entry_count);
+  ctsb.SampleCount = make([]int32, ctsb.EntryCount);
+  ctsb.SampleOffset = make([]int32, ctsb.EntryCount);
 
-  for i := 0; i < int(ctsb.entry_count); i++ {
-    ctsb.sample_count[i] = int32(binary.BigEndian.Uint32(data[0:4]));
-    ctsb.sample_offset[i] = int32(binary.BigEndian.Uint32(data[4:8]));
+  for i := 0; i < int(ctsb.EntryCount); i++ {
+    ctsb.SampleCount[i] = int32(binary.BigEndian.Uint32(data[0:4]));
+    ctsb.SampleOffset[i] = int32(binary.BigEndian.Uint32(data[4:8]));
     data = data[8:];
   }
 
@@ -638,17 +437,17 @@ func parseCompTimeToSampleBox(data []byte, b *Box) (*CompTimeToSampleBox, error)
 
 func parseSyncSampleBox(data []byte, b *Box) (*SyncSampleBox, error) {
   fb,_ := parseFullBox(data, b);
-  ssb := SyncSampleBox{box: *fb};
+  ssb := SyncSampleBox{Box: *fb};
   data = data[4:];
 
-  ssb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+  ssb.EntryCount = binary.BigEndian.Uint32(data[0:4]);
 
   data = data[4:];
 
-  ssb.sample_number = make([]uint32, ssb.entry_count);
+  ssb.SampleNumber = make([]uint32, ssb.EntryCount);
 
-  for i := 0; i < int(ssb.entry_count); i++ {
-    ssb.sample_number[i] = binary.BigEndian.Uint32(data[0:4]);
+  for i := 0; i < int(ssb.EntryCount); i++ {
+    ssb.SampleNumber[i] = binary.BigEndian.Uint32(data[0:4]);
     data = data[4:];
   }
 
@@ -657,21 +456,21 @@ func parseSyncSampleBox(data []byte, b *Box) (*SyncSampleBox, error) {
 
 func parseSampleToChunkBox(data []byte, b *Box) (*SampleToChunkBox, error) {
   fb,_ := parseFullBox(data, b);
-  stcb := SampleToChunkBox{box: *fb};
+  stcb := SampleToChunkBox{Box: *fb};
   data = data[4:];
 
-  stcb.entry_count = binary.BigEndian.Uint32(data[0:4]);
+  stcb.EntryCount = binary.BigEndian.Uint32(data[0:4]);
 
   data = data[4:];
 
-  stcb.first_chunk = make([]int32, stcb.entry_count);
-  stcb.samples_per_chunk = make([]int32, stcb.entry_count);
-  stcb.sample_desc_index = make([]int32, stcb.entry_count);
+  stcb.FirstChunk = make([]int32, stcb.EntryCount);
+  stcb.SamplesPerChunk = make([]int32, stcb.EntryCount);
+  stcb.SampleDescIndex = make([]int32, stcb.EntryCount);
 
-  for i := 0; i < int(stcb.entry_count); i++ {
-    stcb.first_chunk[i] = int32(binary.BigEndian.Uint32(data[0:4]));
-    stcb.samples_per_chunk[i] = int32(binary.BigEndian.Uint32(data[4:8]));
-    stcb.sample_desc_index[i] = int32(binary.BigEndian.Uint32(data[8:12]));
+  for i := 0; i < int(stcb.EntryCount); i++ {
+    stcb.FirstChunk[i] = int32(binary.BigEndian.Uint32(data[0:4]));
+    stcb.SamplesPerChunk[i] = int32(binary.BigEndian.Uint32(data[4:8]));
+    stcb.SampleDescIndex[i] = int32(binary.BigEndian.Uint32(data[8:12]));
     data = data[12:];
   }
 
@@ -680,18 +479,18 @@ func parseSampleToChunkBox(data []byte, b *Box) (*SampleToChunkBox, error) {
 
 func parseSampleSizeBox(data []byte, b *Box) (*SampleSizeBox, error) {
   fb,_ := parseFullBox(data, b);
-  ssb := SampleSizeBox{box: *fb};
+  ssb := SampleSizeBox{Box: *fb};
   data = data[4:];
 
-  ssb.sample_size = binary.BigEndian.Uint32(data[0:4]);
-  ssb.sample_count = binary.BigEndian.Uint32(data[4:8]);
+  ssb.SampleSize = binary.BigEndian.Uint32(data[0:4]);
+  ssb.SampleCount = binary.BigEndian.Uint32(data[4:8]);
 
   data = data[8:];
 
-  if (ssb.sample_size == 0) {
-    ssb.entry_size = make([]uint32, ssb.sample_count);
-    for i := 0; i < int(ssb.sample_count); i++ {
-      ssb.entry_size[i] = binary.BigEndian.Uint32(data[0:4]);
+  if (ssb.SampleSize == 0) {
+    ssb.EntrySize = make([]uint32, ssb.SampleCount);
+    for i := 0; i < int(ssb.SampleCount); i++ {
+      ssb.EntrySize[i] = binary.BigEndian.Uint32(data[0:4]);
       data = data[4:];
     }
   }
@@ -701,16 +500,16 @@ func parseSampleSizeBox(data []byte, b *Box) (*SampleSizeBox, error) {
 
 func parseChunkOffsetBox(data []byte, b *Box) (*ChunkOffsetBox, error) {
   fb,_ := parseFullBox(data, b);
-  cob := ChunkOffsetBox{box: *fb};
+  cob := ChunkOffsetBox{Box: *fb};
   data = data[4:];
 
-  cob.entry_count = binary.BigEndian.Uint32(data[0:4]);
+  cob.EntryCount = binary.BigEndian.Uint32(data[0:4]);
 
   data = data[4:];
 
-  cob.chunk_offset = make([]uint32, cob.entry_count);
-  for i := 0; i < int(cob.entry_count); i++ {
-    cob.chunk_offset[i] = binary.BigEndian.Uint32(data[0:4]);
+  cob.ChunkOffset = make([]uint32, cob.EntryCount);
+  for i := 0; i < int(cob.EntryCount); i++ {
+    cob.ChunkOffset[i] = binary.BigEndian.Uint32(data[0:4]);
     data = data[4:];
   }
 
@@ -718,7 +517,7 @@ func parseChunkOffsetBox(data []byte, b *Box) (*ChunkOffsetBox, error) {
 }
 
 func parseSampleTableBox(data []byte, b *Box) (*SampleTableBox, error) {
-  stb := SampleTableBox{box: *b};
+  stb := SampleTableBox{Box: *b};
 
   tsize := b.headerSize;
 
@@ -734,30 +533,30 @@ func parseSampleTableBox(data []byte, b *Box) (*SampleTableBox, error) {
     switch b.Type {
     case "stsd":
       sdb,_ := parseSampleDescBox(data[b.headerSize:b.Size], b);
-      stb.stsd = *sdb;
+      stb.Stsd = *sdb;
     case "stts":
       ttsb,_ := parseTimeToSampleBox(data[b.headerSize:b.Size], b);
-      stb.stts = *ttsb;
+      stb.Stts = *ttsb;
     case "stss":
       ssb,_ := parseSyncSampleBox(data[b.headerSize:b.Size], b);
-      stb.stss = *ssb;
+      stb.Stss = *ssb;
     case "ctts":
       ctts,_ := parseCompTimeToSampleBox(data[b.headerSize:b.Size], b);
-      stb.ctss = *ctts;
+      stb.Ctss = *ctts;
     case "stsc":
       stcb,_ := parseSampleToChunkBox(data[b.headerSize:b.Size], b);
-      stb.stsc = *stcb;
+      stb.Stsc = *stcb;
     case "stsz":
       ssb,_ := parseSampleSizeBox(data[b.headerSize:b.Size], b);
-      stb.stsz = *ssb;
+      stb.Stsz = *ssb;
     case "stco":
       cob,_ := parseChunkOffsetBox(data[b.headerSize:b.Size], b);
-      stb.stco = *cob;
+      stb.Stco = *cob;
     }
 
     tsize += b.Size;
 
-    if (tsize == stb.box.Size) {
+    if (tsize == stb.Box.Size) {
       break;
     }
 
@@ -769,7 +568,7 @@ func parseSampleTableBox(data []byte, b *Box) (*SampleTableBox, error) {
 }
 
 func parseMediaInfoBox(data []byte, b *Box) (*MediaInfoBox, error) {
-  mib := MediaInfoBox{box: *b};
+  mib := MediaInfoBox{Box: *b};
 
   tsize := b.headerSize;
 
@@ -785,12 +584,12 @@ func parseMediaInfoBox(data []byte, b *Box) (*MediaInfoBox, error) {
     switch b.Type {
     case "stbl":
       stb,_ := parseSampleTableBox(data[b.headerSize:], b);
-      mib.stbl = *stb;
+      mib.Stbl = *stb;
     }
 
     tsize += b.Size;
 
-    if (tsize == mib.box.Size) {
+    if (tsize == mib.Box.Size) {
       break;
     }
 
@@ -801,7 +600,7 @@ func parseMediaInfoBox(data []byte, b *Box) (*MediaInfoBox, error) {
 }
 
 func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
-  mb := MediaBox{box: *b};
+  mb := MediaBox{Box: *b};
 
   tsize := b.headerSize;
 
@@ -817,18 +616,18 @@ func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
     switch b.Type {
     case "mdhd":
       mhb,_ := parseMediaHeaderBox(data[b.headerSize:], b);
-      mb.mdhd = *mhb;
+      mb.Mdhd = *mhb;
     case "hdlr":
       hb,_ := parseHandlerBox(data[b.headerSize:], b);
-      mb.hdlr = *hb;
+      mb.Hdlr = *hb;
     case "minf":
       mib,_ := parseMediaInfoBox(data[b.headerSize:], b);
-      mb.minf = *mib;
+      mb.Minf = *mib;
     }
 
     tsize += b.Size;
 
-    if (tsize == mb.box.Size) {
+    if (tsize == mb.Box.Size) {
       break;
     }
 
@@ -839,7 +638,7 @@ func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
 }
 
 func parseTrackBox(data []byte, b *Box) (*TrackBox, error) {
-  tb := TrackBox{box: *b};
+  tb := TrackBox{Box: *b};
 
   tsize := b.headerSize;
 
@@ -855,15 +654,15 @@ func parseTrackBox(data []byte, b *Box) (*TrackBox, error) {
     switch b.Type {
     case "tkhd":
       thb,_ := parseTrackHeaderBox(data[b.headerSize:], b);
-      tb.tkhd = *thb;
+      tb.Tkhd = *thb;
     case "mdia":
       mb,_ := parseMediaBox(data[b.headerSize:], b);
-      tb.mdia = *mb;
+      tb.Mdia = *mb;
     }
 
     tsize += b.Size;
 
-    if (tsize == tb.box.Size) {
+    if (tsize == tb.Box.Size) {
       break;
     }
 
@@ -874,7 +673,7 @@ func parseTrackBox(data []byte, b *Box) (*TrackBox, error) {
 }
 
 func parseMovieBox(data []byte, b *Box) (*MovieBox, error) {
-  mb := MovieBox{box: *b};
+  mb := MovieBox{Box: *b};
 
   tsize := b.headerSize;
 
@@ -890,15 +689,15 @@ func parseMovieBox(data []byte, b *Box) (*MovieBox, error) {
     switch b.Type {
     case "mvhd":
       mhb,_ := parseMovieHeaderBox(data[b.headerSize:], b);
-      mb.mvhd = *mhb;
+      mb.Mvhd = *mhb;
     case "trak":
       tb,_ := parseTrackBox(data[b.headerSize:], b);
-      mb.tracks = append(mb.tracks, *tb);
+      mb.Tracks = append(mb.Tracks, *tb);
     }
 
     tsize += b.Size;
 
-    if (tsize == mb.box.Size) {
+    if (tsize == mb.Box.Size) {
       break;
     }
 

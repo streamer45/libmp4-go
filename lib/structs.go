@@ -4,197 +4,196 @@ const BOX_HDR_SZ = 8;
 const BOX_HDR_SZ_EXT = 16;
 
 type Box struct {
-  Size uint64 `json:"size"`
   Type string `json:"type"`
+  Size uint64 `json:"size"`
   headerSize uint64
 }
 
 type FullBox struct {
-  box Box
-  version uint8
-  flags [3]byte
+  Box Box `json:"box"`
+  Version uint8 `json:"version"`
+  Flags [3]byte `json:"flags"`
 }
 
 type FileTypeBox struct {
-  Box Box
-  major_brand string
-  minor_version uint32
-  compatible_brands []string
+  Box Box `json:"box"`
+  MajorBrand string `json:"majorBrand"`
+  MinorVersion uint32 `json:"minorVersion"`
+  CompatibleBrands []string `json:"compatibleBrands"`
 }
 
 type FreeSpaceBox struct {
-  Box Box
+  Box Box `json:"box"`
   data []byte
 }
 
 type MediaDataBox struct {
-  Box Box
+  Box Box `json:"box"`
   data []byte
 }
 
 type MovieHeaderBox struct {
-  Box FullBox
-  creation_time uint64
-  modification_time uint64
-  timescale uint32
-  duration uint64
-  rate float32
-  volume float32
-  matrix [3][3]float32
-  pre_defined [6][4]byte
-  next_track_id uint32
+  Box FullBox `json:"fullBox"`
+  Ctime uint64 `json:"creationTime"`
+  Mtime uint64 `json:"modificationTime"`
+  Timescale uint32 `json:"timescale"`
+  Duration uint64 `json:"duration"`
+  Rate float32 `json:"rate"`
+  Volume float32 `json:"volume"`
+  Matrix [3][3]float32 `json:"matrix"`
+  NextTrackID uint32 `json:"nextTrackID"`
 }
 
 type TrackHeaderBox struct {
-  box FullBox
-  creation_time uint64
-  modification_time uint64
-  track_id uint32
-  duration uint64
-  width float32
-  height float32
+  Box FullBox `json:"fullBox"`
+  Ctime uint64 `json:"creationTime"`
+  Mtime uint64 `json:"modificationTime"`
+  TrackID uint32 `json:"trackID"`
+  Duration uint64 `json:"duration"`
+  Width float32 `json:"width"`
+  Height float32 `json:"height"`
 }
 
 type MediaHeaderBox struct {
-  box FullBox
-  creation_time uint64
-  modification_time uint64
-  timescale uint32
-  duration uint64
-  language string
+  Box FullBox `json:"fullBox"`
+  Ctime uint64 `json:"creationTime"`
+  Mtime uint64 `json:"modificationTime"`
+  Timescale uint32 `json:"timescale"`
+  Duration uint64 `json:"duration"`
+  Language string `json:"language"`
 }
 
 type HandlerBox struct {
-  box FullBox
-  handler_type string
-  name string
+  Box FullBox `json:"fullBox"`
+  HandlerType string `json:"handlerType"`
+  Name string `json:"name"`
 }
 
 type AVCcBox struct {
-  box Box
-  version uint8
-  profile uint8
-  level uint8
-  size_len uint8
-  sps [][]byte
-  pps [][]byte
+  Box Box `json:"box"`
+  Version uint8 `json:"version"`
+  Profile uint8 `json:"profile"`
+  Level uint8 `json:"level"`
+  SizeLen uint8 `json:"sizeLen"`
+  SPS [][]byte `json:"sps"`
+  PPS [][]byte `json:"pps"`
 }
 
 type PixelAspectRatioBox struct {
-  box Box
-  hSpacing uint32
-  vSpacing uint32
+  Box Box `json:"box"`
+  HSpacing uint32 `json:"hSpacing"`
+  VSpacing uint32 `json:"vSpacing"`
 }
 
 type VideoSampleDescription struct {
-  width uint16
-  height uint16
-  depth uint16
+  Width uint16 `json:"width"`
+  Height uint16 `json:"height"`
+  Depth uint16 `json:"depth"`
 }
 
 type ESDescriptor struct {
-  tag uint8
-  len uint8
-  id uint16
-  config []byte
+  Tag uint8 `json:"tag"`
+  Length uint8 `json:"length"`
+  Id uint16 `json:"id"`
+  Config []byte `json:"config"`
 }
 
 type ElementaryStreamDescBox struct {
-  box Box
-  esd ESDescriptor
+  Box Box `json:"box"`
+  Esd ESDescriptor `json:"esd"`
 }
 
 type SoundSampleDescription struct {
-  channels uint16
-  sample_size uint16
-  sample_rate float32
+  Channels uint16 `json:"channels"`
+  SampleSize uint16 `json:"sampleSize"`
+  SampleRate float32 `json:"sampleRate"`
 }
 
 type SampleEntry struct {
-  box Box
-  data_ref_index uint16
-  sample_desc interface{}
-  extensions []interface{}
+  Box Box `json:"box"`
+  DataRefIndex uint16 `json:"dataRefIndex"`
+  SampleDesc interface{} `json:"sampleDesc"`
+  Extensions []interface{} `json:"extensions"`
 }
 
 type SampleDescriptionBox struct {
-  box FullBox
-  entry_count uint32
-  entries []SampleEntry
+  Box FullBox `json:"box"`
+  EntryCount uint32 `json:"entryCount"`
+  Entries []SampleEntry `json:"entries"`
 }
 
 type TimeToSampleBox struct {
-  box FullBox
-  entry_count uint32
-  sample_count []uint32
-  sample_delta []uint32
+  Box FullBox `json:"fullBox"`
+  EntryCount uint32 `json:"entryCount"`
+  SampleCount []uint32 `json:"sampleCount"`
+  SampleDelta []uint32 `json:"sampleDelta"`
 }
 
 type SyncSampleBox struct {
-  box FullBox
-  entry_count uint32
-  sample_number []uint32
+  Box FullBox `json:"fullBox"`
+  EntryCount uint32 `json:"entryCount"`
+  SampleNumber []uint32 `json:"sampleNumber"`
 }
 
 type CompTimeToSampleBox struct {
-  box FullBox
-  entry_count uint32
-  sample_count []int32
-  sample_offset []int32
+  Box FullBox `json:"fullBox"`
+  EntryCount uint32 `json:"entryCount"`
+  SampleCount []int32 `json:"sampleCount"`
+  SampleOffset []int32 `json:"sampleOffset"`
 }
 
 type SampleToChunkBox struct {
-  box FullBox
-  entry_count uint32
-  first_chunk []int32
-  samples_per_chunk []int32
-  sample_desc_index []int32
+  Box FullBox `json:"fullBox"`
+  EntryCount uint32 `json:"entryCount"`
+  FirstChunk []int32 `json:"firstChunk"`
+  SamplesPerChunk []int32 `json:"samplesPerChunk"`
+  SampleDescIndex []int32 `json:"sampleDescindex"`
 }
 
 type SampleSizeBox struct {
-  box FullBox
-  sample_size uint32
-  sample_count uint32
-  entry_size []uint32
+  Box FullBox `json:"fullBox"`
+  SampleSize uint32 `json:"sampleSize"`
+  SampleCount uint32 `json:"sampleCount"`
+  EntrySize []uint32 `json:"entrySize"`
 }
 
 type ChunkOffsetBox struct {
-  box FullBox
-  entry_count uint32
-  chunk_offset []uint32
+  Box FullBox `json:"fullBox"`
+  EntryCount uint32 `json:"entryCount"`
+  ChunkOffset []uint32 `json:"chunkOffset"`
 }
 
 type SampleTableBox struct {
-  box Box
-  stsd SampleDescriptionBox
-  stts TimeToSampleBox
-  stss SyncSampleBox
-  ctss CompTimeToSampleBox
-  stsc SampleToChunkBox
-  stsz SampleSizeBox
-  stco ChunkOffsetBox
+  Box Box `json:"box"`
+  Stsd SampleDescriptionBox `json:"stsd"`
+  Stts TimeToSampleBox `json:"stts"`
+  Stss SyncSampleBox `json:"stss"`
+  Ctss CompTimeToSampleBox `json:"ctss"`
+  Stsc SampleToChunkBox `json:"stsc"`
+  Stsz SampleSizeBox `json:"stsz"`
+  Stco ChunkOffsetBox `json:"stco"`
 }
 
 type MediaInfoBox struct {
-  box Box
-  stbl SampleTableBox
+  Box Box `json:"box"`
+  Stbl SampleTableBox `json:"stbl"`
 }
 
 type MediaBox struct {
-  box Box
-  mdhd MediaHeaderBox
-  hdlr HandlerBox
-  minf MediaInfoBox
+  Box Box `json:"box"`
+  Mdhd MediaHeaderBox `json:"mdhd"`
+  Hdlr HandlerBox `json:"hdlr"`
+  Minf MediaInfoBox `json:"minf"`
 }
 
 type TrackBox struct {
-  box Box
-  tkhd TrackHeaderBox
-  mdia MediaBox
+  Box Box `json:"box"`
+  Tkhd TrackHeaderBox `json:"tkhd"`
+  Mdia MediaBox `json:"mdia"`
 }
 
 type MovieBox struct {
-  Box Box
-  mvhd MovieHeaderBox
-  tracks []TrackBox
+  Box Box `json:"box"`
+  Mvhd MovieHeaderBox `json:"mvhd"`
+  Tracks []TrackBox `json:"tracks"`
 }
