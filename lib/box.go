@@ -262,26 +262,42 @@ func parseESDescriptor(data []byte) (*ESDescriptor, error) {
   d := ESDescriptor{};
 
   d.Tag = data[0];
-  d.Length = data[4];
-  d.Id = binary.BigEndian.Uint16(data[5:7]);
+  data = data[1:];
 
-  data = data[8:];
+  if ((data[0] & 0x80) != 0x00) {
+    data = data[3:];
+  }
+
+  d.Length = data[0];
+  d.Id = binary.BigEndian.Uint16(data[1:3]);
+
+  data = data[4:];
   tag := data[0];
+  data = data[1:];
 
   if (tag != 0x04) {
     return nil, errors.New("invalid descriptor tag");
   }
 
-  len := data[4];
-  data = data[4 + 14:];
+  if ((data[0] & 0x80) != 0x00) {
+    data = data[3:];
+  }
+
+  len := data[0];
+  data = data[14:];
   tag = data[0];
+  data = data[1:];
 
   if (tag != 0x05) {
     return nil, errors.New("invalid descriptor tag");
   }
 
-  len = data[4];
-  data = data[5:];
+  if ((data[0] & 0x80) != 0x00) {
+    data = data[3:];
+  }
+
+  len = data[0];
+  data = data[1:];
   d.Config = make([]byte, len);
   copy(d.Config, data[:len]);
 
@@ -296,6 +312,7 @@ func parseElementaryStreamDescBox(data []byte, b *Box) (*ElementaryStreamDescBox
 
   if (err != nil) {
     fmt.Println(err)
+    return &esds, nil;
   }
 
   esds.Esd = *d;
