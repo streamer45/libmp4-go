@@ -7,7 +7,7 @@ import (
 
   "encoding/json"
 
-  mp4 "github.com/streamer45/mp4/lib"
+  mp4 "github.com/streamer45/libmp4-go/lib"
 )
 
 func printUsage() {
