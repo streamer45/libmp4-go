@@ -99,7 +99,7 @@ func parseMovieHeaderBox(data []byte, b *Box) (*MovieHeaderBox, error) {
     data = data[12:];
   }
 
-  data = data[9 * 4 + 6 * 4:];
+  data = data[24:];
 
   mhb.NextTrackID = binary.BigEndian.Uint32(data[0:4]);
 
@@ -239,10 +239,10 @@ func parseVideoSampleDesc(data []byte, entry *SampleEntry) (*VideoSampleDescript
 
     switch (b.Type) {
     case "avcC":
-      avcc,_ := parseAVCcBox(data[b.headerSize:], b);
+      avcc,_ := parseAVCcBox(data[b.headerSize:b.Size], b);
       entry.Extensions = append(entry.Extensions, *avcc);
     case "pasp":
-      pasp,_ := parsePixelAspectRatioBox(data[b.headerSize:], b);
+      pasp,_ := parsePixelAspectRatioBox(data[b.headerSize:b.Size], b);
       entry.Extensions = append(entry.Extensions, *pasp);
     }
 
@@ -600,7 +600,7 @@ func parseMediaInfoBox(data []byte, b *Box) (*MediaInfoBox, error) {
 
     switch b.Type {
     case "stbl":
-      stb,_ := parseSampleTableBox(data[b.headerSize:], b);
+      stb,_ := parseSampleTableBox(data[b.headerSize:b.Size], b);
       mib.Stbl = *stb;
     }
 
@@ -632,13 +632,13 @@ func parseMediaBox(data []byte, b *Box) (*MediaBox, error) {
 
     switch b.Type {
     case "mdhd":
-      mhb,_ := parseMediaHeaderBox(data[b.headerSize:], b);
+      mhb,_ := parseMediaHeaderBox(data[b.headerSize:b.Size], b);
       mb.Mdhd = *mhb;
     case "hdlr":
-      hb,_ := parseHandlerBox(data[b.headerSize:], b);
+      hb,_ := parseHandlerBox(data[b.headerSize:b.Size], b);
       mb.Hdlr = *hb;
     case "minf":
-      mib,_ := parseMediaInfoBox(data[b.headerSize:], b);
+      mib,_ := parseMediaInfoBox(data[b.headerSize:b.Size], b);
       mb.Minf = *mib;
     }
 
@@ -670,10 +670,10 @@ func parseTrackBox(data []byte, b *Box) (*TrackBox, error) {
 
     switch b.Type {
     case "tkhd":
-      thb,_ := parseTrackHeaderBox(data[b.headerSize:], b);
+      thb,_ := parseTrackHeaderBox(data[b.headerSize:b.Size], b);
       tb.Tkhd = *thb;
     case "mdia":
-      mb,_ := parseMediaBox(data[b.headerSize:], b);
+      mb,_ := parseMediaBox(data[b.headerSize:b.Size], b);
       tb.Mdia = *mb;
     }
 
@@ -705,10 +705,10 @@ func parseMovieBox(data []byte, b *Box) (*MovieBox, error) {
 
     switch b.Type {
     case "mvhd":
-      mhb,_ := parseMovieHeaderBox(data[b.headerSize:], b);
+      mhb,_ := parseMovieHeaderBox(data[b.headerSize:b.Size], b);
       mb.Mvhd = *mhb;
     case "trak":
-      tb,_ := parseTrackBox(data[b.headerSize:], b);
+      tb,_ := parseTrackBox(data[b.headerSize:b.Size], b);
       mb.Tracks = append(mb.Tracks, *tb);
     }
 
